@@ -1,0 +1,166 @@
+---
+title: "Untitled"
+author: "Krishna"
+date: "20 August 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+behav = read.csv("C:\\Users\\Administrator\\Desktop\\India infoline\\behavior.csv")
+demog = read.csv("C:\\Users\\Administrator\\Desktop\\India infoline\\demog.csv")
+
+```
+
+####Function to determine numerical and categorical columns
+
+```{r}
+vec=function(x){
+num=sapply(x, is.numeric)
+fact=sapply(x,is.factor)
+return (list(names(x)[fact],names(x)[num]))
+}
+```
+
+####numerical and categorical columns in behaviour table
+```{r}
+vec(behav)
+```
+
+####numerical and categorical columns in demographic table
+```{r}
+vec(demog)
+```
+
+#### Measure of central tendency and distribution of numerical features
+```{r}
+data_func=function(a){
+numb=a[,vec(a)[[2]]]
+q1= sapply(numb,function(a){quantile(a,0.25,na.rm =T)})
+q2=sapply(numb,function(a){quantile(a,0.5,na.rm =T)})
+q3=sapply(numb,function(a){quantile(a,0.75,na.rm =T)})
+
+out= function(a){
+q1=quantile(a,0.25,na.rm =T)
+q3=quantile(a,0.75,na.rm =T)
+iqr = q3- q1
+lw = q1-1.5*iqr
+uw =q3+1.5*iqr
+out=sum(a>uw | a<lw,na.rm=T)
+total=length(a)
+perc=out/total*100
+return(perc)
+}
+outlier_perc=sapply(numb,out)
+minimum=sapply(numb,min,na.rm=T)
+maximum=sapply(numb, max,na.rm=T)
+standarddev=sapply(numb,sd,na.rm=T)
+mean1=sapply(numb,mean,na.rm=T)
+variance=sapply(numb,var,na.rm=T)
+perc_na=sapply(numb,function(a) {sum(is.na(a))/length(a)*100})
+g=as.data.frame(rbind(minimum,q1,q2,q3,mean1,maximum,variance,standarddev,perc_na,outlier_perc))
+return(g)
+}
+data_func(behav)
+```
+
+###function for distinct attributes
+```{r}
+cata_func = function(a){
+cata = a[,vec(a)[[1]]]
+summary(cata)
+}
+
+
+```
+### number of distinct categorical attributes in demographic table
+```{r}
+cata_func(demog %>% select(-Customer_ID))
+
+```
+
+### number of distinct categorical attributes in behaviour table
+```{r}
+cata_func(behav %>% select(-Customer_ID))
+```
+
+
+###missing value inputation in demographic column
+```{r}
+demog$Income_Level[demog$Income_Level==""] = "£30,000 to £50,000"
+demog$Marital_Status[demog$Marital_Status==""] = "Single"
+demog$Ethnicity[demog$Ethnicity==""] = "Asian or Asian British"
+demog$Age_Band[demog$Age_Band==""] = "25-35 years"
+
+```
+
+
+###after imputation
+```{r}
+cata_func(demog %>% select(-Customer_ID))
+```
+
+```{r}
+dem = demog %>% select(-Customer_ID)
+dem = na.omit(dem)
+a = dem %>% group_by(Age_Band) %>% summarise(percent = n()/nrow(dem)*100)
+b = dem %>% group_by(Gender) %>% summarise(per = n()/nrow(dem)*100)
+c = dem %>% group_by(Ethnicity) %>% summarise(percent = n()/nrow(dem)*100)
+d = dem %>% group_by(Income_Level) %>% summarise(percent = n()/nrow(dem)*100)
+e = dem %>% group_by(Marital_Status) %>% summarise(percent = n()/nrow(dem)*100)
+z = list(a,b,c,d,e)
+z
+
+```
+
+###missing values in behaviour table
+```{r}
+beh = behav %>% select(-Customer_ID)
+colSums(is.na(beh)/nrow(beh)*100)
+```
+
+```{r}
+
+behav$No_of_Products[is.na(behav$No_of_Products)] = min(behav$No_of_Products,na.rm = T) ### since 1 is occuring maximum nunber of times
+
+behav$Footing[is.na(behav$Footing)] = mean(behav$No_of_Products,na.rm = T)
+
+behav$Interest_income[is.na(behav$Interest_income)] =mean(behav$No_of_Products,na.rm = T) 
+
+behav$Cost_of_Fund[is.na(behav$Cost_of_Fund)] =mean(behav$Cost_of_Fund,na.rm = T)
+
+behav$Non_interest_Income[is.na(behav$Non_interest_Income)]=mean(behav$Non_interest_Income,na.rm = T)
+
+behav$Other_income[is.na(behav$Other_income)] =mean(behav$Other_income,na.rm = T)
+
+behav$Operational_Expenses[is.na(behav$Operational_Expenses)]=mean(behav$Operational_Expenses,na.rm = T)
+
+behav$Revenue[is.na(behav$Revenue)]=mean(behav$Revenue,na.rm = T)
+```
+### after imputation
+```{r}
+beh = behav %>% select(-Customer_ID)
+colSums(is.na(beh)/nrow(beh)*100)
+```
+
+###Merging two tables
+```{r}
+new_table = merge(demog,behav,by="Customer_ID")
+### we can remove the credit limit column because the number of na values in around 91-92% which does not make sense in imputation because it may create biasness in the data.
+
+new_table = new_table %>% select(-Credit_Limit)
+```
+
+```{r}
+library(reshape2)
+melted = melt(new_table,id = c("Customer_ID","Age_Band","Gender", "Ethnicity", "Income_Level", "Marital_Status","Footing","Interest_income","Cost_of_Fund","Non_interest_Income","Other_income","Operational_Expenses","Revenue","EBIT","No_of_Products"))
+
+```
+
+```{r}
+library(rpart)
+mel = na.omit(melted) ### we are losing very less information so we can omit the null values in other features.
+
+```
+
